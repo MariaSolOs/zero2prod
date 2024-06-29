@@ -1,19 +1,36 @@
+use once_cell::sync::Lazy;
 use reqwest::Client;
+use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-use std::net::TcpListener;
+use std::{env, io, net::TcpListener};
 use uuid::Uuid;
 use zero2prod::{
     configuration::{self, DatabaseSettings},
-    startup,
+    startup, telemetry,
 };
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber_name = "test".into();
+    let env_filter = "info".into();
+
+    if env::var("TEST_LOG").is_ok() {
+        let subscriber = telemetry::get_subscriber(subscriber_name, env_filter, io::stdout);
+        telemetry::init_subscriber(subscriber);
+    } else {
+        let subscriber = telemetry::get_subscriber(subscriber_name, env_filter, io::sink);
+        telemetry::init_subscriber(subscriber);
+    }
+});
 
 struct TestApp {
     address: String,
     db_pool: PgPool,
 }
 
-/// Spins up an instance of the application and returns its address.
+/// Spins up an instance of the application.
 async fn spawn_app() -> TestApp {
+    Lazy::force(&TRACING);
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port.");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
@@ -30,15 +47,16 @@ async fn spawn_app() -> TestApp {
 }
 
 async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    let mut connection = PgConnection::connect(&config.connection_string_without_db())
-        .await
-        .expect("Failed to connect to Postgres.");
+    let mut connection =
+        PgConnection::connect(&config.connection_string_without_db().expose_secret())
+            .await
+            .expect("Failed to connect to Postgres.");
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
         .await
         .expect("Failed to create database.");
 
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres.");
     sqlx::migrate!("./migrations")
