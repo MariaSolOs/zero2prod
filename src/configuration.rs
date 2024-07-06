@@ -1,5 +1,3 @@
-use std::env;
-
 use config::{Config, ConfigError, File};
 use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
@@ -7,9 +5,11 @@ use sqlx::{
     postgres::{PgConnectOptions, PgSslMode},
     ConnectOptions,
 };
+use std::{env, time::Duration};
 use tracing_log::log::LevelFilter;
 
-/// Possible runtime environment for the application.
+use crate::domain::SubscriberEmail;
+
 enum Environment {
     Local,
     Production,
@@ -39,20 +39,7 @@ impl TryFrom<String> for Environment {
     }
 }
 
-#[derive(serde::Deserialize)]
-pub struct ApplicationSettings {
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub port: u16,
-    pub host: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct Settings {
-    pub database: DatabaseSettings,
-    pub application: ApplicationSettings,
-}
-
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 pub struct DatabaseSettings {
     pub username: String,
     pub password: Secret<String>,
@@ -84,6 +71,39 @@ impl DatabaseSettings {
             .port(self.port)
             .ssl_mode(ssl_mode)
     }
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct ApplicationSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub port: u16,
+    pub host: String,
+    pub base_url: String,
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: Secret<String>,
+    pub timeout_milliseconds: u64,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
+    }
+
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_milliseconds)
+    }
+}
+
+#[derive(Clone, serde::Deserialize)]
+pub struct Settings {
+    pub database: DatabaseSettings,
+    pub application: ApplicationSettings,
+    pub email_client: EmailClientSettings,
 }
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {
