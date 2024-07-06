@@ -87,13 +87,13 @@ impl DatabaseSettings {
 }
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {
-    let base_path = env::current_dir().expect("Failed to determine the current directory");
+    let base_path = env::current_dir().expect("Failed to determine the current directory.");
     let config_dir = base_path.join("configuration");
 
     let environment: Environment = env::var("APP_ENVIRONMENT")
         .unwrap_or_else(|_| "local".into())
         .try_into()
-        .expect("Failed to parse APP_ENVIRONMENT");
+        .expect("Failed to parse APP_ENVIRONMENT.");
     let environment_filename = format!("{}.yaml", environment.as_str());
 
     let settings = Config::builder()
