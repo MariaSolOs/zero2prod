@@ -84,14 +84,14 @@ mod tests {
     };
     use secrecy::Secret;
     use serde_json::Value;
-    use wiremock::{matchers, Match, Mock, MockServer, Request, ResponseTemplate};
+    use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
 
     use crate::{domain::SubscriberEmail, email_client::EmailClient};
 
     struct SendEmailBodyMatcher;
 
-    impl Match for SendEmailBodyMatcher {
-        fn matches(&self, request: &Request) -> bool {
+    impl wiremock::Match for SendEmailBodyMatcher {
+        fn matches(&self, request: &wiremock::Request) -> bool {
             let result: Result<Value, _> = serde_json::from_slice(&request.body);
             if let Ok(body) = result {
                 body.get("From").is_some()

@@ -23,14 +23,14 @@ impl AsRef<str> for SubscriberEmail {
 mod tests {
     use claims::assert_err;
     use fake::{faker::internet::en::SafeEmail, Fake};
-    use quickcheck::{Arbitrary, Gen};
+    use quickcheck::Gen;
 
     use super::SubscriberEmail;
 
     #[derive(Clone, Debug)]
     struct ValidEmailFixture(pub String);
 
-    impl Arbitrary for ValidEmailFixture {
+    impl quickcheck::Arbitrary for ValidEmailFixture {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let email = SafeEmail().fake_with_rng(g);
             Self(email)

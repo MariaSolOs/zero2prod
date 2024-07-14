@@ -13,6 +13,7 @@ name = "zero2prod"
 
 [dependencies]
 actix-web = "4"
+anyhow = "1"
 chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
 # TODO: Update config to fix the audit error.
 config = "0.14.0"
@@ -22,6 +23,7 @@ serde-aux = "4"
 sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate"] }
 rand = { version = "0.8", features = ["std_rng"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+thiserror = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-actix-web = "0.7"
