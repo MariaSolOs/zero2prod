@@ -172,7 +172,7 @@ async fn send_confirmation_email(
     );
 
     email_client
-        .send_email(new_subscriber.email, "Welcome!", html_body, text_body)
+        .send_email(&new_subscriber.email, "Welcome!", html_body, text_body)
         .await
 }
 
@@ -210,7 +210,7 @@ fn generate_subscription_token() -> String {
         .collect()
 }
 
-fn error_chain_fmt(e: &impl error::Error, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+pub fn error_chain_fmt(e: &impl error::Error, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     writeln!(f, "{}\n", e)?;
 
     let mut current = e.source();
