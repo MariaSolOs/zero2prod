@@ -1,8 +1,9 @@
-use std::io::{self, Error};
+use anyhow::Result;
+use std::io;
 use zero2prod::{configuration, startup::Application, telemetry};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<()> {
     let subscriber = telemetry::get_subscriber("zero2prod", "info", io::stdout);
     telemetry::init_subscriber(subscriber);
 
