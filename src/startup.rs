@@ -101,13 +101,17 @@ pub async fn run(
             .route("/login", web::get().to(routes::login_form))
             .route("/login", web::post().to(routes::login))
             .route("/health_check", web::get().to(routes::health_check))
-            .route("/newsletters", web::post().to(routes::publish_newsletter))
             .route("/subscriptions", web::post().to(routes::subscribe))
             .route("/subscriptions/confirm", web::get().to(routes::confirm))
             .service(
                 web::scope("/admin")
                     .wrap(middleware::from_fn(authentication::reject_anonymous_users))
                     .route("/dashboard", web::get().to(routes::admin_dashboard))
+                    .route(
+                        "/newsletters",
+                        web::get().to(routes::publish_newsletter_form),
+                    )
+                    .route("/newsletters", web::post().to(routes::publish_newsletter))
                     .route("/password", web::get().to(routes::change_password_form))
                     .route("/password", web::post().to(routes::change_password))
                     .route("/logout", web::post().to(routes::log_out)),
