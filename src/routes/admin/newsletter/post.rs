@@ -6,13 +6,20 @@ use actix_web_flash_messages::FlashMessage;
 use anyhow::{anyhow, Context};
 use sqlx::PgPool;
 
-use crate::{authentication::UserId, domain::SubscriberEmail, email_client::EmailClient, utils};
+use crate::{
+    authentication::UserId,
+    domain::SubscriberEmail,
+    email_client::EmailClient,
+    idempotency::{self, IdempotencyKey, NextAction},
+    utils,
+};
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
     title: String,
     text_content: String,
     html_content: String,
+    idempotency_key: String,
 }
 
 struct ConfirmedSubscriber {
@@ -30,6 +37,26 @@ pub async fn publish_newsletter(
     pool: Data<PgPool>,
     email_client: Data<EmailClient>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let user_id = user_id.into_inner();
+    let FormData {
+        title,
+        text_content,
+        html_content,
+        idempotency_key,
+    } = form.0;
+    let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(utils::e400)?;
+
+    let transaction = match idempotency::try_processing(&pool, &idempotency_key, *user_id)
+        .await
+        .map_err(utils::e500)?
+    {
+        NextAction::StartProcessing(t) => t,
+        NextAction::ReturnSavedResponse(res) => {
+            success_message().send();
+            return Ok(res);
+        }
+    };
+
     let subscribers = get_confirmed_subscribers(&pool)
         .await
         .map_err(utils::e500)?;
@@ -38,12 +65,7 @@ pub async fn publish_newsletter(
         match subscriber {
             Ok(subscriber) => {
                 email_client
-                    .send_email(
-                        &subscriber.email,
-                        &form.title,
-                        &form.html_content,
-                        &form.text_content,
-                    )
+                    .send_email(&subscriber.email, &title, &html_content, &text_content)
                     .await
                     .with_context(|| {
                         format!("Failed to send newsletter issue to {}", subscriber.email)
@@ -60,8 +82,14 @@ pub async fn publish_newsletter(
         }
     }
 
-    FlashMessage::info("The newsletter issue has been published!").send();
-    Ok(utils::see_other("/admin/newsletters"))
+    success_message().send();
+
+    let response = utils::see_other("/admin/newsletters");
+    let response = idempotency::save_response(transaction, &idempotency_key, *user_id, response)
+        .await
+        .map_err(utils::e500)?;
+
+    Ok(response)
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
@@ -80,4 +108,8 @@ async fn get_confirmed_subscribers(
             .collect();
 
     Ok(confirmed_subscribers)
+}
+
+fn success_message() -> FlashMessage {
+    FlashMessage::info("The newsletter issue has been published!")
 }

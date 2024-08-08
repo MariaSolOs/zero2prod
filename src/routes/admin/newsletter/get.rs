@@ -1,6 +1,7 @@
 use actix_web::{http::header::ContentType, Error, HttpResponse};
 use actix_web_flash_messages::IncomingFlashMessages;
 use std::fmt::Write;
+use uuid::Uuid;
 
 pub async fn publish_newsletter_form(
     flash_messages: IncomingFlashMessages,
@@ -9,6 +10,8 @@ pub async fn publish_newsletter_form(
     for msg in flash_messages.iter() {
         writeln!(msg_html, "<p><i>{}</i></p>", msg.content()).unwrap();
     }
+
+    let idempotency_key = Uuid::new_v4();
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::html())
@@ -37,6 +40,7 @@ pub async fn publish_newsletter_form(
                 <textarea placeholder="Enter the content in HTML format" name="html_content" rows="20" cols="50"></textarea>
             </label>
             <br>
+            <input hidden type="text" name="idempotency_key" value="{idempotency_key}">
             <button type="submit">Publish</button>
         </form>
         <p><a href="/admin/dashboard">&lt;- Back</a></p>
