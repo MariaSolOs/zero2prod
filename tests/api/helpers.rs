@@ -9,6 +9,8 @@ use uuid::Uuid;
 use wiremock::{MockServer, Request};
 use zero2prod::{
     configuration::{self, DatabaseSettings},
+    email_client::EmailClient,
+    issue_delivery_worker::{self, ExecutionOutcome},
     startup::{self, Application},
     telemetry,
 };
@@ -82,6 +84,7 @@ pub struct TestApp {
     pub port: u16,
     pub db_pool: PgPool,
     pub email_server: MockServer,
+    pub email_client: EmailClient,
     pub test_user: TestUser,
     pub api_client: Client,
 }
@@ -213,6 +216,18 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue =
+                issue_delivery_worker::try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;
+            }
+        }
+    }
 }
 
 pub async fn spawn_app() -> TestApp {
@@ -220,7 +235,7 @@ pub async fn spawn_app() -> TestApp {
 
     let email_server = MockServer::start().await;
 
-    let config = {
+    let configuration = {
         let mut c = configuration::get_configuration().expect("Failed to read configuration.");
         c.database.database_name = Uuid::new_v4().to_string();
         c.application.port = 0;
@@ -228,9 +243,9 @@ pub async fn spawn_app() -> TestApp {
         c
     };
 
-    configure_database(&config.database).await;
+    configure_database(&configuration.database).await;
 
-    let app = Application::build(config.clone())
+    let app = Application::build(configuration.clone())
         .await
         .expect("Failed to build application.");
     let port = app.port();
@@ -246,8 +261,9 @@ pub async fn spawn_app() -> TestApp {
     let test_app = TestApp {
         address,
         port,
-        db_pool: startup::get_db_pool(&config.database),
+        db_pool: startup::get_db_pool(&configuration.database),
         email_server,
+        email_client: configuration.email_client.client(),
         test_user: TestUser::generate(),
         api_client,
     };

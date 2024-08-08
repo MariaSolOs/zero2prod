@@ -28,29 +28,22 @@ pub struct Application {
 pub struct HmacSecret(pub Secret<String>);
 
 impl Application {
-    pub async fn build(config: Settings) -> Result<Self, anyhow::Error> {
-        let db_pool = get_db_pool(&config.database);
-        let sender_email = config
-            .email_client
-            .sender()
-            .expect("Invalid sender email address.");
-        let timeout = config.email_client.timeout();
-        let email_client = EmailClient::new(
-            config.email_client.base_url,
-            sender_email,
-            config.email_client.authorization_token,
-            timeout,
+    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
+        let db_pool = get_db_pool(&configuration.database);
+        let email_client = configuration.email_client.client();
+        let address = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
         );
-        let address = format!("{}:{}", config.application.host, config.application.port);
         let listener = TcpListener::bind(address).expect("Failed to bind random port.");
         let port = listener.local_addr().unwrap().port();
         let server = run(
             listener,
             db_pool,
             email_client,
-            config.application.base_url,
-            config.application.hmac_secret,
-            config.redis_uri,
+            configuration.application.base_url,
+            configuration.application.hmac_secret,
+            configuration.redis_uri,
         )
         .await?;
 
